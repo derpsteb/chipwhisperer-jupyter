@@ -8,7 +8,7 @@ class edge_count:
         self.edge_num = edge_num
         self.pretrigger_ctr = pretrigger_ctr
         
-    def _movavg(self, trace, absolute=False):
+    def _movavg(self, trace, absolute=True):
         if absolute:
             trace = numpy.absolute(trace)
         # Basic movavg
@@ -25,7 +25,7 @@ class edge_count:
                 
         return moving_aves
     
-    def _movsum(self, trace, absolute=False):
+    def _movsum(self, trace, absolute=True):
         if absolute:
             trace = numpy.absolute(trace)
         cumsum_cur = 0
@@ -38,10 +38,13 @@ class edge_count:
         return mov_sum
         
         
-    def run(self, trace):
+    def run(self, trace, interpolation="avg"):
         trace = numpy.absolute(trace)
         # https://stackoverflow.com/questions/13728392/moving-average-or-running-mean
-        averaged = self._movavg_cw(trace, self.settling_time)
+        if interpolation == "avg":
+            averaged = self._movavg(trace, self.settling_time)
+        if interpolation == "sum":
+            averaged = self._movsum(trace, self.settling_time)
         # averaged = uniform_filter1d(trace, size=self.settling_time)
         # Go through averaged trace and mark every idx
         # where the trace surpases the trigger threshold for the first time
