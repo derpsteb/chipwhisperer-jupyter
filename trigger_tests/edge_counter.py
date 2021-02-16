@@ -1,3 +1,5 @@
+import numpy
+
 class edge_count:
     def __init__(self, settling_time, trig_threshold, edge_num, edge_type="rising_edge", pretrigger_ctr=1):
         self.edge_type = edge_type
@@ -6,30 +8,34 @@ class edge_count:
         self.edge_num = edge_num
         self.pretrigger_ctr = pretrigger_ctr
         
-    def _movavg(self, trace, win_size):
+    def _movavg(self, trace, absolute=False):
+        if absolute:
+            trace = numpy.absolute(trace)
         # Basic movavg
         # https://stackoverflow.com/questions/13728392/moving-average-or-running-mean
         cumsum, moving_aves = [0], []
         for i, x in enumerate(trace):
             cumsum.append(cumsum[i-1] + x)
-            if i >= win_size:
+            if i >= self.settling_time:
                 # cummulative sum of the values within the window
                 # cumsum_i: cumsum up to point i
                 # cumsum_i-j: cumsum up to i, without anything before j
-                moving_ave = (cumsum[i] - cumsum[i-win_size])/win_size
+                moving_ave = (cumsum[i] - cumsum[i-self.settling_time])/self.settling_time
                 moving_aves.append(moving_ave)
                 
         return moving_aves
     
-    def _movavg_cw(self, trace, win_size):
+    def _movsum(self, trace, absolute=False):
+        if absolute:
+            trace = numpy.absolute(trace)
         cumsum_cur = 0
-        moving_aves = []
+        mov_sum = []
         for i, x in enumerate(trace):
             cumsum_cur += trace[i]
-            if i >= win_size:
-                cumsum_cur = cumsum_cur - trace[i-win_size]
-                moving_aves.append(cumsum_cur)
-        return moving_aves
+            if i >= self.settling_time:
+                cumsum_cur = cumsum_cur - trace[i-self.settling_time]
+                mov_sum.append(cumsum_cur)
+        return mov_sum
         
         
     def run(self, trace):
