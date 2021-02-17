@@ -1,0 +1,57 @@
+import serial
+import struct
+
+CMD_TOGGLE_LED = 65
+CMD_POWER_CYCLE = 66
+CMD_SET_GLITCH_PULSE = 67 # uint32
+CMD_SET_DELAY = 68 # uint32
+CMD_SET_POWER_PULSE = 69 # uint32
+CMD_GLITCH = 70
+CMD_READ_GPIO = 71
+CMD_ENABLE_GLITCH_POWER_CYCLE = 72 # bool/byte
+CMD_GET_STATE = 73 # Get state of fpga
+CMD_GET_FLANKS = 50 # Get current flank count
+CMD_SET_EDGE_COUNTER = 74
+CMD_SET_TRIGGER_MODE = 75
+CMD_SET_TRIGGER_LENGTH = 76
+
+def cmd_toggle_led(fpga):
+    fpga.write(chr(CMD_TOGGLE_LED).encode("ASCII"))
+
+def cmd(fpga, command):
+    fpga.write(chr(command).encode("ASCII"))
+
+def cmd_uint32(fpga, command, u32):
+    fpga.write(chr(command).encode("ASCII"))
+    data = struct.pack(">L", u32)
+    fpga.write(data)
+
+def cmd_uint8(fpga, command, u8):
+    fpga.write(chr(command).encode("ASCII"))
+    data = struct.pack("B", u8)
+    fpga.write(data)
+
+def cmd_read_uint8(fpga, command):
+    fpga.write(chr(command).encode("ASCII"))
+    return fpga.read(1)[0]
+
+def cmd_read_uint32(fpga, command):
+    fpga.write(chr(command).encode("ASCII"))
+    return fpga.read(4)
+
+def setup(fpga, power_cycle_pulse=100, delay=0, glitch_pulse=10, edge_counter=1, trigger_length=1, power_cycle_before_glitch=1, trigger_mode=1):
+    # 1 == 10ns
+    cmd_uint32(fpga, CMD_SET_POWER_PULSE, power_cycle_pulse)
+    cmd_uint32(fpga, CMD_SET_DELAY, delay)
+    cmd_uint32(fpga, CMD_SET_GLITCH_PULSE, glitch_pulse)
+    cmd_uint32(fpga, CMD_SET_EDGE_COUNTER, edge_counter)
+    cmd_uint32(fpga, CMD_SET_TRIGGER_LENGTH, trigger_length)
+    cmd_uint8(fpga, CMD_ENABLE_GLITCH_POWER_CYCLE, power_cycle_before_glitch)
+    cmd_uint8(fpga, CMD_SET_TRIGGER_MODE, trigger_mode)
+
+def manual_glitch(fpga):
+    cmd(fpga, CMD_GLITCH)
+    # Loop until the status is == 0, aka the glitch is done.
+    # This avoids having to manually time the glitch :)
+    while(cmd_read_uint8(fpga, CMD_GET_STATE)):
+        pass
