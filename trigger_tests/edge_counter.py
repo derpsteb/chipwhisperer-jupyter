@@ -5,6 +5,7 @@ class edge_count:
         self.edge_type = edge_type
         self.settling_time = settling_time
         self.trig_threshold = trig_threshold
+        self.effective_th = trig_threshold*settling_time
         self.edge_num = edge_num
         self.pretrigger_ctr = pretrigger_ctr
         
@@ -55,7 +56,7 @@ class edge_count:
         triggers = []
         pretrigger_ctr = self.pretrigger_ctr
         for i, val in enumerate(averaged):
-            if val > self.trig_threshold:
+            if val > self.effective_th:
                 if self.edge_type == "rising_edge":
                     if not high or pretrigger_ctr < self.pretrigger_ctr:
                         pretrigger_ctr -= 1
