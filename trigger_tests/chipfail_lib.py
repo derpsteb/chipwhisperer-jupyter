@@ -39,7 +39,7 @@ def cmd_read_uint32(fpga, command):
     fpga.write(chr(command).encode("ASCII"))
     return fpga.read(4)
 
-def setup(fpga, power_cycle_pulse=100, delay=0, glitch_pulse=10, edge_counter=1, trigger_length=1, power_cycle_before_glitch=1, trigger_mode=1):
+def setup(fpga, power_cycle_pulse=100, delay=0, glitch_pulse=10, edge_counter=1, trigger_length=1, power_cycle_before_glitch=0, trigger_mode=0):
     # 1 == 10ns
     cmd_uint32(fpga, CMD_SET_POWER_PULSE, power_cycle_pulse)
     cmd_uint32(fpga, CMD_SET_DELAY, delay)
@@ -51,15 +51,17 @@ def setup(fpga, power_cycle_pulse=100, delay=0, glitch_pulse=10, edge_counter=1,
 
 def manual_glitch(fpga):
     cmd(fpga, CMD_GLITCH)
+    
+def wait_until_rdy(fpga):
     # Loop until the status is == 0, aka the glitch is done.
     # This avoids having to manually time the glitch :)
     while(cmd_read_uint8(fpga, CMD_GET_STATE)):
         pass
 
-def success_uart(target, delay, pulse):
+def success_uart(target, offset, pulse):
     response = target.readline()
     # response = target.read(38)
-    print(f"delay: {delay} | pulse: {pulse} | response: {response}", flush=True)
+    print(f"offset: {offset} | pulse: {pulse} | response: {response}", flush=True)
     # if not b"!100 - 100 - 10000\n" in response:
     # if response != b'\x00\nstarting:\n1000000 \xe2\x88\x92 1000 \xe2\x88\x92 1000\n':
     # if response != b'!100 - 100 - 10000\n':
