@@ -1,0 +1,99 @@
+import chipfail_lib
+import serial
+import Setup_Generic
+
+from time import sleep
+import matplotlib.pyplot as plt
+
+def load_bitstream(bitstream_file):
+    scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
+    scope.scopetype.cwFirmwareConfig[0xACE2].loader.setFPGAMode("debug")
+    scope.scopetype.cwFirmwareConfig[0xACE2].loader._bsLoc = bitstream_file
+    scope.scopetype.cwFirmwareConfig[0xACE2].loader.save_bsLoc()
+    print("Mode: " + str(scope.scopetype.cwFirmwareConfig[0xACE2].loader._release_mode))
+    print("Mode: " + str(scope.scopetype.cwFirmwareConfig[0xACE2].loader.fpga_bitstream()))
+    input("powercycle done?")
+    scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
+    return (scope, target, prog)
+
+def setup_cw(scope):
+    scope.default_setup()
+    scope.adc.offset = 0
+    scope.gain.gain = 50
+    scope.adc.samples = 24400
+    #scope.adc.presamples = 400
+    
+    # per docs has to be like that for DecodeIO and SAD
+    scope.adc.basic_mode = "rising_edge"
+
+def setup_ec(scope):
+    setup_cw(scope)
+    scope.EC.reset()
+    scope.EC.window_size = 200
+    scope.EC.threshold = 0.015
+    scope.EC.hold_cycles = 150
+    scope.EC.absolute_values = True
+    scope.EC.edge_num = 1
+    scope.EC.edge_type = "falling_edge"
+    scope.EC.start()
+    scope.trigger.module = "EC"
+
+def collect_trace(scope):
+    scope.io.tio1 = "gpio_low"
+    scope.EC.reset(keep_config=True)
+    scope.arm()
+    scope.EC.start()
+    scope.io.tio1 = "gpio_high"
+    # arms scope
+    scope.capture()
+    trace = scope.get_last_trace()
+    return trace
+
+def setup_glitcher(scope, offset=0, width=1):
+    scope.glitch.clk_src = "clkgen"
+    # scope.glitch.width = 10
+    # scope.glitch.width_fine = 0
+    scope.glitch.repeat = width
+    scope.glitch.ext_offset = offset
+    scope.glitch.trigger_src = "ext_single"
+    scope.glitch.output = "enable_only"
+    scope.glitch.arm_timing = 'before_scope'
+
+    scope.io.glitch_hp = True
+    scope.io.glitch_lp = False
+
+if __name__ == "__main__":
+
+    SCOPETYPE = 'OPENADC'
+    PLATFORM = 'CWLITEXMEGA'
+    CRYPTO_TARGET = 'AVRCRYPTOLIB'
+
+    scope, target, prog = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
+    # Initialize connection to ARTY A7 FPGA
+    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
+
+    setup_ec(scope)
+    setup_glitcher(scope, 0, 4000)
+    scope.adc.decimate = 50
+
+    offset = 0
+    nr_samples = 24400
+
+    MIN_OFFSET = 0
+    MAX_OFFSET = 10000
+    OFFSET_STEP = 1
+    MIN_WIDTH = 1140
+    MAX_WIDTH = 1220
+    WIDTH_STEP = 1
+    
+    success = False
+    while not success:
+        for offset in range(MIN_OFFSET, MAX_OFFSET, OFFSET_STEP):
+            for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
+                chipfail_lib.setup(fpga, delay=offset, glitch_pulse=width)
+                trace = collect_trace(scope)    
+                plt.plot(trace)
+                plt.show()
+                success = chipfail_lib.success_uart(target, offset, width)
+                chipfail_lib.wait_until_rdy(fpga)
