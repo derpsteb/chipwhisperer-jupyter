@@ -42,6 +42,11 @@ def collect_trace(scope):
     scope.io.tio1 = "gpio_low"
     scope.EC.reset(keep_config=True)
     scope.arm()
+    
+    # The actual glitch signal is produced by the A7
+    # CW is used to control the target and trigger A7
+    chipfail_lib.manual_glitch(fpga)
+
     scope.EC.start()
     scope.io.tio1 = "gpio_high"
     # arms scope
@@ -73,16 +78,18 @@ if __name__ == "__main__":
     fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
     target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
 
-    setup_ec(scope)
-    setup_glitcher(scope, 0, 4000)
-    scope.adc.decimate = 50
-
     offset = 0
     nr_samples = 24400
 
-    MIN_OFFSET = 0
-    MAX_OFFSET = 10000
-    OFFSET_STEP = 1
+    setup_ec(scope)
+    setup_glitcher(scope)
+    scope.adc.decimate = 50
+
+
+    # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
+    MIN_OFFSET = 14900
+    MAX_OFFSET = 16000
+    OFFSET_STEP = 4
     MIN_WIDTH = 1140
     MAX_WIDTH = 1220
     WIDTH_STEP = 1
@@ -92,8 +99,7 @@ if __name__ == "__main__":
         for offset in range(MIN_OFFSET, MAX_OFFSET, OFFSET_STEP):
             for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
                 chipfail_lib.setup(fpga, delay=offset, glitch_pulse=width)
-                trace = collect_trace(scope)    
-                plt.plot(trace)
-                plt.show()
+                trace = collect_trace(scope)
                 success = chipfail_lib.success_uart(target, offset, width)
                 chipfail_lib.wait_until_rdy(fpga)
+                sleep(0.1)
