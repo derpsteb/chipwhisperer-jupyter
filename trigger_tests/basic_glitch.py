@@ -2,8 +2,7 @@ import chipfail_lib
 import serial
 import Setup_Generic
 
-import holoviews as hv
-
+import matplotlib.pyplot as plt
 
 def setup_cw(scope, offset, nr_samples):
     scope.default_setup()
@@ -32,7 +31,7 @@ def collect_trace_basic():
     
     scope.io.tio1 = "gpio_high"
     scope.capture()
-    # return scope.get_last_trace()
+    return scope.get_last_trace()
 
 def setup_glitcher(scope, offset=0, width=1):
     scope.glitch.clk_src = "clkgen"
@@ -40,7 +39,7 @@ def setup_glitcher(scope, offset=0, width=1):
     # scope.glitch.width_fine = 0
     scope.glitch.repeat = width
     scope.glitch.ext_offset = offset
-    scope.glitch.trigger_src = "ext_continuous"
+    scope.glitch.trigger_src = "ext_single"
     scope.glitch.output = "enable_only"
     scope.glitch.arm_timing = 'before_scope'
 
@@ -49,7 +48,7 @@ def setup_glitcher(scope, offset=0, width=1):
 
 if __name__ == "__main__":
 
-    SCOPETYPE = 'OPENvADC'
+    SCOPETYPE = 'OPENADC'
     PLATFORM = 'CWLITEXMEGA'
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
@@ -60,8 +59,10 @@ if __name__ == "__main__":
 
     offset = 0
     nr_samples = 24400
+    
     setup_basic(scope, offset, nr_samples)
-    # setup_glitcher(scope)
+    setup_glitcher(scope)
+    scope.adc.decimate = 50
 
     MIN_OFFSET = 2500
     MAX_OFFSET = 3000
@@ -70,11 +71,14 @@ if __name__ == "__main__":
     MAX_WIDTH = 1220
     WIDTH_STEP = 1
 
+
     success = False
     while not success:
         for offset in range(MIN_OFFSET, MAX_OFFSET, OFFSET_STEP):
             for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
                 chipfail_lib.setup(fpga, delay=offset, glitch_pulse=width)
-                collect_trace_basic()    
+                trace = collect_trace_basic()    
+                plt.plot(trace)
+                plt.show()
                 success = chipfail_lib.success_uart(target, offset, width)
                 chipfail_lib.wait_until_rdy(fpga)
