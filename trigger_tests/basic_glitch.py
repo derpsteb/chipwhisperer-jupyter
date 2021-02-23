@@ -9,7 +9,8 @@ def setup_cw(scope, offset, nr_samples):
     scope.adc.offset = offset
     scope.gain.gain = 50
     scope.adc.samples = nr_samples
-    #scope.adc.presamples = 400
+    scope.clock.adc_src = "clkgen_x1"
+    scope.clock.clkgen_freq = 150E6
     
     # per docs has to be like that for DecodeIO and SAD
     scope.adc.basic_mode = "rising_edge"
@@ -55,30 +56,35 @@ if __name__ == "__main__":
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
     # Initialize connection to ARTY A7 FPGA
     fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
+    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
     offset = 0
     nr_samples = 24400
-    
+
     setup_basic(scope, offset, nr_samples)
     setup_glitcher(scope)
+    chipfail_lib.setup(fpga, power_cycle_before_glitch=1)
+
     scope.adc.decimate = 50
 
-    MIN_OFFSET = 2500
+    MIN_OFFSET = 100
     MAX_OFFSET = 3000
     OFFSET_STEP = 1
-    MIN_WIDTH = 1140
-    MAX_WIDTH = 1220
+    MIN_WIDTH = 960
+    MAX_WIDTH = 990
     WIDTH_STEP = 1
 
+    print(scope.clock.clkgen_freq)
 
     success = False
     while not success:
         for offset in range(MIN_OFFSET, MAX_OFFSET, OFFSET_STEP):
+            scope.glitch.ext_offset = offset
+
             for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
-                chipfail_lib.setup(fpga, delay=offset, glitch_pulse=width)
+                scope.glitch.repeat = width
                 trace = collect_trace_basic()    
-                plt.plot(trace)
-                plt.show()
+                # plt.plot(trace)
+                # plt.show()
                 success = chipfail_lib.success_uart(target, offset, width)
                 chipfail_lib.wait_until_rdy(fpga)

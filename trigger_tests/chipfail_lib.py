@@ -40,7 +40,7 @@ def cmd_read_uint32(fpga, command):
     fpga.write(chr(command).encode("ASCII"))
     return fpga.read(4)
 
-def setup(fpga, power_cycle_pulse=100, delay=0, glitch_pulse=10, edge_counter=1, trigger_length=1, power_cycle_before_glitch=0, trigger_mode=0):
+def setup(fpga, power_cycle_pulse=30, delay=0, glitch_pulse=10, edge_counter=1, trigger_length=1, power_cycle_before_glitch=0, trigger_mode=0):
     # 1 == 10ns
     cmd_uint32(fpga, CMD_SET_POWER_PULSE, power_cycle_pulse)
     cmd_uint32(fpga, CMD_SET_DELAY, delay)
