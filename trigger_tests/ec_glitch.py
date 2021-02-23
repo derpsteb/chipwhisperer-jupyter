@@ -3,6 +3,7 @@ import serial
 import Setup_Generic
 
 from time import sleep
+import random
 import matplotlib.pyplot as plt
 
 def load_bitstream(bitstream_file):
@@ -75,31 +76,43 @@ if __name__ == "__main__":
 
     scope, target, prog = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB3", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB1", baudrate=115200, timeout=0.2)
 
     offset = 0
     nr_samples = 24400
 
     setup_ec(scope)
     setup_glitcher(scope)
+    chipfail_lib.setup(fpga, delay=0, glitch_pulse=1)
     scope.adc.decimate = 50
 
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 14900
-    MAX_OFFSET = 16000
+    MIN_OFFSET = 8364
+    MAX_OFFSET = 284240
     OFFSET_STEP = 4
-    MIN_WIDTH = 1140
-    MAX_WIDTH = 1220
+    MIN_WIDTH = 1160
+    MAX_WIDTH = 1164
     WIDTH_STEP = 1
     
     success = False
-    while not success:
-        for offset in range(MIN_OFFSET, MAX_OFFSET, OFFSET_STEP):
+    offsets = range(MIN_OFFSET, MAX_OFFSET)
+    used_offset = []
+    with open("progress.txt", "a") as file:
+        while not success:
             for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
-                chipfail_lib.setup(fpga, delay=offset, glitch_pulse=width)
-                trace = collect_trace(scope)
-                success = chipfail_lib.success_uart(target, offset, width)
-                chipfail_lib.wait_until_rdy(fpga)
-                sleep(0.1)
+                chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
+                while len(used_offset) < MAX_OFFSET - MIN_OFFSET:
+                    offset = random.choice(offsets)
+                    if offset in used_offset:
+                        continue
+
+                    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
+                    trace = collect_trace(scope)
+                    success = chipfail_lib.success_uart(target, offset, width)
+                    chipfail_lib.wait_until_rdy(fpga)
+                    
+                    used_offset.append(offset)
+                    file.write(f"{offset}\n")
+                    sleep(0.1)
