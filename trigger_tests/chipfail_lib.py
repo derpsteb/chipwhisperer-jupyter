@@ -1,5 +1,6 @@
 import serial
 import struct
+import datetime
 
 CMD_TOGGLE_LED = 65
 CMD_POWER_CYCLE = 66
@@ -61,7 +62,7 @@ def wait_until_rdy(fpga):
 def success_uart(target, offset, pulse):
     response = target.readline()
     # response = target.read(38)
-    print(f"offset: {offset} | pulse: {pulse} | response: {response}", flush=True)
+    print(f"time: {datetime.datetime.now().time()} | offset: {offset} | pulse: {pulse} | response: {response}", flush=True)
     # if not b"!100 - 100 - 10000\n" in response:
     # if response != b'\x00\nstarting:\n1000000 \xe2\x88\x92 1000 \xe2\x88\x92 1000\n':
     # if response != b'!100 - 100 - 10000\n':
