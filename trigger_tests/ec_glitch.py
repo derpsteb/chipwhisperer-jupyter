@@ -74,6 +74,11 @@ def read_progress():
 
     return lines_stripped
 
+def save_progress(used_offsets):
+    with open(PROGRESS_FILE, "w+") as file:
+        file.truncate(0)
+        strings = [str(offset) for offset in used_offsets]
+        file.write("\n".join(string))
 
 if __name__ == "__main__":
 
@@ -107,34 +112,34 @@ if __name__ == "__main__":
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
     try:
-        used_offset = read_progress()
+        used_offsets = read_progress()
     except:
         with open(PROGRESS_FILE, "w"):
             pass
-        used_offset = []
+        used_offsets = []
 
-    print(f"starting with used_offset len: {len(used_offset)}")
+    print(f"starting with used_offsets len: {len(used_offsets)}")
 
-    while not success:
-        for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
-            chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
-            while len(used_offset) <= MAX_OFFSET - MIN_OFFSET:
-                time_pre = datetime.datetime.now()
-                with open(PROGRESS_FILE, "a") as file:
-                    offset = random.choice(offsets)
-                    if offset in used_offset:
-                        continue
+    try:
+        while not success:
+            for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
+                chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
+                while len(used_offsets) <= MAX_OFFSET - MIN_OFFSET:
+                    time_pre = datetime.datetime.now()
+                    with open(PROGRESS_FILE, "a") as file:
+                        offset = random.choice(offsets)
+                        if offset in used_offsets:
+                            continue
 
-                    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
-                    collect_trace(scope)
-                    success = chipfail_lib.success_uart(target, offset, width)
-                    chipfail_lib.wait_until_rdy(fpga)
-                    
-                    used_offset.append(offset)
-                    file.write(f"{offset}\n")
-                    # sleep(0.1)
-                print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
-                    
-            with open(PROGRESS_FILE, "r+") as file:
-                file.truncate(0)
-            used_offset = []
+                        chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
+                        collect_trace(scope)
+                        success = chipfail_lib.success_uart(target, offset, width)
+                        chipfail_lib.wait_until_rdy(fpga)
+                        
+                        used_offsets.append(offset)
+                        
+                    print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
+                        
+                used_offsets = []
+    except KeyboardInterrupt:
+        save_progress(used_offsets)
