@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 8364
+    MIN_OFFSET = 83640
     MAX_OFFSET = 284240
     OFFSET_STEP = 4
     MIN_WIDTH = 1160
