@@ -75,7 +75,8 @@ def read_progress():
     return lines_stripped
 
 def save_progress(used_offsets):
-    with open(PROGRESS_FILE, "a") as file:
+    with open(PROGRESS_FILE, "w+") as file:
+        file.truncate(0)
         strings = [str(offset) for offset in used_offsets]
         file.write("\n".join(strings))
 
@@ -141,7 +142,7 @@ if __name__ == "__main__":
                 
                 with open(PROGRESS_FILE, "w+") as file:
                     file.truncate(0)
-                            
+
                 used_offsets = []
     except KeyboardInterrupt:
         save_progress(used_offsets)
