@@ -118,11 +118,12 @@ if __name__ == "__main__":
 
     print(f"starting with used_offset len: {len(used_offset)}")
 
-    with open(PROGRESS_FILE, "r+") as file:
-        while not success:
-            for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
-                chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
-                while len(used_offset) <= MAX_OFFSET - MIN_OFFSET:
+    
+    while not success:
+        for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
+            chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
+            while len(used_offset) <= MAX_OFFSET - MIN_OFFSET:
+                with open(PROGRESS_FILE, "a") as file:
                     offset = random.choice(offsets)
                     if offset in used_offset:
                         continue
@@ -135,6 +136,7 @@ if __name__ == "__main__":
                     used_offset.append(offset)
                     file.write(f"{offset}\n")
                     sleep(0.1)
-
+                    
+            with open(PROGRESS_FILE, "r+") as file:
                 file.truncate(0)
-                used_offset = []
+            used_offset = []
