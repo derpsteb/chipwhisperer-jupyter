@@ -124,19 +124,20 @@ if __name__ == "__main__":
         while not success:
             for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
                 chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
-                while len(used_offsets) <= MAX_OFFSET - MIN_OFFSET:
-                    time_pre = datetime.datetime.now()
-                    with open(PROGRESS_FILE, "a") as file:
-                        offset = random.choice(offsets)
-                        if offset in used_offsets:
-                            continue
+                
+                offsets = set(range(MIN_OFFSET, MAX_OFFSET+1))
+                new_offsets = offsets.difference(set(used_offsets))
+                random.shuffle(new_offsets)
 
-                        chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
-                        collect_trace(scope)
-                        success = chipfail_lib.success_uart(target, offset, width)
-                        chipfail_lib.wait_until_rdy(fpga)
+                for offset in list(new_offsets):
+                    time_pre = datetime.datetime.now()
+                    
+                    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
+                    collect_trace(scope)
+                    success = chipfail_lib.success_uart(target, offset, width)
+                    chipfail_lib.wait_until_rdy(fpga)
                         
-                        used_offsets.append(offset)
+                    used_offsets.append(offset)
                         
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
                 
