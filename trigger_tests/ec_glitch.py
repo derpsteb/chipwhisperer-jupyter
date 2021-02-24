@@ -78,7 +78,7 @@ def save_progress(used_offsets):
     with open(PROGRESS_FILE, "w+") as file:
         file.truncate(0)
         strings = [str(offset) for offset in used_offsets]
-        file.write("\n".join(string))
+        file.write("\n".join(strings))
 
 if __name__ == "__main__":
 
