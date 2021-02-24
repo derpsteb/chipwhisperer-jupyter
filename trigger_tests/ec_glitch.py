@@ -84,10 +84,11 @@ if __name__ == "__main__":
     PLATFORM = 'CWLITEXMEGA'
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
-    scope, target, prog = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
     # Initialize connection to ARTY A7 FPGA
     fpga = serial.Serial("/dev/ttyUSB3", baudrate=115200)
     target = serial.Serial("/dev/ttyUSB1", baudrate=115200, timeout=0.2)
+
+    scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
 
     offset = 0
     nr_samples = 24400
@@ -111,6 +112,8 @@ if __name__ == "__main__":
     try:
         used_offset = read_progress()
     except:
+        with open(PROGRESS_FILE, "w"):
+            pass
         used_offset = []
 
     print(f"starting with used_offset len: {len(used_offset)}")
@@ -132,6 +135,6 @@ if __name__ == "__main__":
                     used_offset.append(offset)
                     file.write(f"{offset}\n")
                     sleep(0.1)
-                    
+
                 file.truncate(0)
                 used_offset = []
