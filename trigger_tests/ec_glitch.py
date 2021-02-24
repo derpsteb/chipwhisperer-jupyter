@@ -3,6 +3,7 @@ import serial
 import Setup_Generic
 
 from time import sleep
+import datetime
 import random
 import matplotlib.pyplot as plt
 
@@ -52,10 +53,6 @@ def collect_trace(scope):
 
     scope.EC.start()
     scope.io.tio1 = "gpio_high"
-    # arms scope
-    scope.capture()
-    trace = scope.get_last_trace()
-    return trace
 
 def setup_glitcher(scope, offset=0, width=1):
     scope.glitch.clk_src = "clkgen"
@@ -85,8 +82,8 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB3", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB1", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
     scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
 
@@ -118,24 +115,25 @@ if __name__ == "__main__":
 
     print(f"starting with used_offset len: {len(used_offset)}")
 
-    
     while not success:
         for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
             chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
             while len(used_offset) <= MAX_OFFSET - MIN_OFFSET:
+                time_pre = datetime.datetime.now()
                 with open(PROGRESS_FILE, "a") as file:
                     offset = random.choice(offsets)
                     if offset in used_offset:
                         continue
 
                     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
-                    trace = collect_trace(scope)
+                    collect_trace(scope)
                     success = chipfail_lib.success_uart(target, offset, width)
                     chipfail_lib.wait_until_rdy(fpga)
                     
                     used_offset.append(offset)
                     file.write(f"{offset}\n")
-                    sleep(0.1)
+                    # sleep(0.1)
+                print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
                     
             with open(PROGRESS_FILE, "r+") as file:
                 file.truncate(0)
