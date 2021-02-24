@@ -126,10 +126,10 @@ if __name__ == "__main__":
                 chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
                 
                 offsets = set(range(MIN_OFFSET, MAX_OFFSET+1))
-                new_offsets = offsets.difference(set(used_offsets))
+                new_offsets = list(offsets.difference(set(used_offsets)))
                 random.shuffle(new_offsets)
 
-                for offset in list(new_offsets):
+                for offset in new_offsets:
                     time_pre = datetime.datetime.now()
                     
                     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
