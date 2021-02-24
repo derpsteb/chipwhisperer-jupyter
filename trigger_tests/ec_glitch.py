@@ -6,6 +6,8 @@ from time import sleep
 import random
 import matplotlib.pyplot as plt
 
+PROGRESS_FILE = "progress.txt"
+
 def load_bitstream(bitstream_file):
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
     scope.scopetype.cwFirmwareConfig[0xACE2].loader.setFPGAMode("debug")
@@ -68,6 +70,14 @@ def setup_glitcher(scope, offset=0, width=1):
     scope.io.glitch_hp = True
     scope.io.glitch_lp = False
 
+def read_progress():
+    with open(PROGRESS_FILE, "r") as file:
+        lines = file.readlines()
+        lines_stripped = [int(line.strip()) for line in lines]
+
+    return lines_stripped
+
+
 if __name__ == "__main__":
 
     SCOPETYPE = 'OPENADC'
@@ -98,12 +108,18 @@ if __name__ == "__main__":
     
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
-    used_offset = []
-    with open("progress.txt", "a") as file:
+    try:
+        used_offset = read_progress()
+    except:
+        used_offset = []
+
+    print(f"starting with used_offset len: {len(used_offset)}")
+
+    with open(PROGRESS_FILE, "r+") as file:
         while not success:
             for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
                 chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
-                while len(used_offset) < MAX_OFFSET - MIN_OFFSET:
+                while len(used_offset) <= MAX_OFFSET - MIN_OFFSET:
                     offset = random.choice(offsets)
                     if offset in used_offset:
                         continue
@@ -116,3 +132,6 @@ if __name__ == "__main__":
                     used_offset.append(offset)
                     file.write(f"{offset}\n")
                     sleep(0.1)
+                    
+                file.truncate(0)
+                used_offset = []
