@@ -2,6 +2,7 @@ import chipfail_lib
 import serial
 import Setup_Generic
 
+import json
 from time import sleep
 import datetime
 import random
@@ -37,7 +38,7 @@ def setup_ec(scope):
     scope.EC.threshold = 0.015
     scope.EC.hold_cycles = 150
     scope.EC.absolute_values = True
-    scope.EC.edge_num = 1
+    scope.EC.edge_num = 2
     scope.EC.edge_type = "falling_edge"
     scope.EC.start()
     scope.trigger.module = "EC"
@@ -53,6 +54,8 @@ def collect_trace(scope):
 
     scope.EC.start()
     scope.io.tio1 = "gpio_high"
+    # scope.capture()
+    # return scope.get_last_trace()
 
 def setup_glitcher(scope, offset=0, width=1):
     scope.glitch.clk_src = "clkgen"
@@ -69,16 +72,12 @@ def setup_glitcher(scope, offset=0, width=1):
 
 def read_progress():
     with open(PROGRESS_FILE, "r") as file:
-        lines = file.readlines()
-        lines_stripped = [int(line.strip()) for line in lines]
+        return json.loads(file.read())
 
-    return lines_stripped
-
-def save_progress(used_offsets):
+def save_progress(progress):
     with open(PROGRESS_FILE, "w+") as file:
         file.truncate(0)
-        strings = [str(offset) for offset in used_offsets]
-        file.write("\n".join(strings))
+        file.write(json.dumps(progress))
 
 if __name__ == "__main__":
 
@@ -87,8 +86,8 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
 
     scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
 
@@ -102,48 +101,56 @@ if __name__ == "__main__":
 
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 8364
-    MAX_OFFSET = 284240
-    OFFSET_STEP = 4
-    MIN_WIDTH = 1160
-    MAX_WIDTH = 1164
-    WIDTH_STEP = 1
+    MIN_OFFSET = 0
+    MAX_OFFSET = 284580
+    STEP_SIZES = [20, 10, 5, 2, 1]
     
+    WIDTH = 1160
+    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
+
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
     try:
-        used_offsets = read_progress()
+        progress = read_progress()
     except:
         with open(PROGRESS_FILE, "w"):
             pass
-        used_offsets = []
+        progress = {"step_size": 0, "cur_repeat": 0, "used_offsets": []}
 
-    print(f"starting with used_offsets len: {len(used_offsets)}")
+    used_len = len(progress["used_offsets"])
+    print(f"starting with progress len: {used_len}")
 
     try:
-        while not success:
-            for width in range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP):
-                chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
-                
-                offsets = set(range(MIN_OFFSET, MAX_OFFSET+1))
-                new_offsets = offsets.difference(set(used_offsets))
+        # increase search resolution from time to time
+        for step_size in STEP_SIZES:
+            progress["step_size"] = step_size
+            # only decrease step_size after repeating 20 times
+            for i in range(0,20):
+                progress["cur_repeat"] = i
+
+                offsets = set(range(MIN_OFFSET, MAX_OFFSET+1, step_size))
+                new_offsets = list(offsets.difference(set(progress)))
                 random.shuffle(new_offsets)
 
-                for offset in list(new_offsets):
+                for offset in new_offsets:
                     time_pre = datetime.datetime.now()
                     
                     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
-                    collect_trace(scope)
-                    success = chipfail_lib.success_uart(target, offset, width)
+                    trace = collect_trace(scope)
+
+                    success = chipfail_lib.success_uart(target, offset, WIDTH)
+                    if success:
+                        exit(0)
                     chipfail_lib.wait_until_rdy(fpga)
                         
-                    used_offsets.append(offset)
+                    progress["used_offsets"].append(offset)
                         
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
-                
+
+                # Remove any leftover progress from FS
                 with open(PROGRESS_FILE, "w+") as file:
                     file.truncate(0)
+                progress["used_offsets"] = []
 
-                used_offsets = []
     except KeyboardInterrupt:
-        save_progress(used_offsets)
+        save_progress(progress)

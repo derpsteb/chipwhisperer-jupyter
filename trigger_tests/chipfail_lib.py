@@ -59,19 +59,24 @@ def wait_until_rdy(fpga):
     while(cmd_read_uint8(fpga, CMD_GET_STATE)):
         pass
 
-def success_uart(target, offset, pulse):
+def flush_uart(ser):
+    ser.flushInput()
+    ser.flushOutput()
+
+def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True):
     response = target.readline()
     # response = target.read(38)
     print(f"time: {datetime.datetime.now().time()} | offset: {offset} | pulse: {pulse} | response: {response}", flush=True)
     # if not b"!100 - 100 - 10000\n" in response:
     # if response != b'\x00\nstarting:\n1000000 \xe2\x88\x92 1000 \xe2\x88\x92 1000\n':
     # if response != b'!100 - 100 - 10000\n':
-    if response == b'Open\r\n':
+    if response == expected_reponse:
         print("*** SUCCESS ***", flush=True)
-        target.timeout = None
-        hexdump = target.read(1024*96)
-        with open("./hexdump.txt", "w") as file:
-            file.write(hexdump.decode())
+        if dump:
+            target.timeout = None
+            hexdump = target.read(1024*96)
+            with open("./hexdump.txt", "w") as file:
+                file.write(hexdump.decode())
         return True
     else:
         return False
