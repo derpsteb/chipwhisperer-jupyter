@@ -14,8 +14,8 @@ for line in lines:
     pulse, occ, response = tail.partition(" | ")
     
     # strip key
-    result["used_offsets"].append(offset[8:])
-    result["used_widths"].append(pulse[7:])
+    result["used_offsets"].append(int(offset[8:]))
+    result["used_widths"].append(int(pulse[7:]))
     result["responses"].append(response[11:].strip("'").strip("\\n"))
 
 with open("parsed_logs.txt", "w") as file:
