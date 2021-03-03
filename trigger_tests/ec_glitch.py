@@ -9,7 +9,8 @@ import random
 import matplotlib.pyplot as plt
 
 PROGRESS_FILE = "progress.txt"
-LOG_FILE = f"{datetime.datetime.now().date()}_log.txt"
+cur_time = datetime.datetime.now()
+LOG_FILE = f"{cur_time.strftime('%d%m%y_%X')}.log"
 
 def load_bitstream(bitstream_file):
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
@@ -92,8 +93,8 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
     scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
 
@@ -116,7 +117,7 @@ if __name__ == "__main__":
 
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
-    log = []
+    log = {"used_offsets": [], "used_widths": [], "responses": []}
 
     try:
         progress = read_progress()
@@ -152,7 +153,11 @@ if __name__ == "__main__":
                     chipfail_lib.wait_until_rdy(fpga)
                         
                     progress["used_offsets"].append(offset)
-                    log.append((offset, width, response.decode()))
+
+                    log["used_widths"].append(WIDTH)
+                    log["used_offsets"].append(offset)
+                    log["responses"].append(response.decode())
+
                     sleep(0.1)    
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
 
