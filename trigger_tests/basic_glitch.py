@@ -4,6 +4,11 @@ import Setup_Generic
 
 import matplotlib.pyplot as plt
 import random
+import datetime
+from time import sleep
+import json
+
+PROGRESS_FILE = "progress.txt"
 
 def setup_cw(scope, offset, nr_samples):
     scope.default_setup()
@@ -47,6 +52,15 @@ def setup_glitcher(scope, offset=0, width=1):
     scope.io.glitch_hp = True
     scope.io.glitch_lp = False
 
+def read_progress():
+    with open(PROGRESS_FILE, "r") as file:
+        return json.loads(file.read())
+
+def save_progress(progress):
+    with open(PROGRESS_FILE, "w+") as file:
+        file.truncate(0)
+        file.write(json.dumps(progress))
+
 if __name__ == "__main__":
 
     SCOPETYPE = 'OPENADC'
@@ -66,31 +80,61 @@ if __name__ == "__main__":
     chipfail_lib.setup(fpga)
     scope.adc.decimate = 50
 
-    MIN_OFFSET = 1160
-    MAX_OFFSET = 1161
-    OFFSET_STEP = 1
-    MIN_WIDTH = 1160
-    MAX_WIDTH = 1161
-    WIDTH_STEP = 1
+    # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
+    MIN_OFFSET = 5000000
+    MAX_OFFSET = 5000001
+    STEP_SIZES = [20, 10, 5, 2, 1]
+    
+    WIDTH = random.randrange(0, 10000, 500)
+    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
 
     success = False
-    while not success:
-        width_range = list(range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEP))
-        random.shuffle(width_range)
-        for width in width_range:
-            chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
+    offsets = range(MIN_OFFSET, MAX_OFFSET)
+    try:
+        progress = read_progress()
+    except:
+        with open(PROGRESS_FILE, "w"):
+            pass
+        progress = {"step_size": 0, "cur_repeat": 0, "used_offsets": []}
 
-            offset_range = list(range(MIN_OFFSET, MAX_OFFSET, OFFSET_STEP))
-            # random.shuffle(offset_range)
-            for offset in offset_range:
-                chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
+    used_len = len(progress["used_offsets"])
+    print(f"starting with progress len: {used_len}")
 
-                trace = collect_trace_basic()    
-                # plt.plot(trace)
-                # plt.show()
-                success = chipfail_lib.success_uart(target, offset, width, b'target_ptr: 52012cc8 | val: 42424242\n', False)
-                if success:
-                    exit(0)
-                chipfail_lib.flush_uart(target)
+    try:
+        # increase search resolution from time to time
+        for step_size in STEP_SIZES:
+            progress["step_size"] = step_size
+            # only decrease step_size after repeating 20 times
+            for i in range(0,20):
+                progress["cur_repeat"] = i
 
-                chipfail_lib.wait_until_rdy(fpga)
+                offsets = set(range(MIN_OFFSET, MAX_OFFSET+1, step_size))
+                new_offsets = list(offsets.difference(set(progress)))
+                random.shuffle(new_offsets)
+
+                for offset in new_offsets:
+                    time_pre = datetime.datetime.now()
+
+                    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
+
+                    trace = collect_trace_basic()    
+                    # plt.plot(trace)
+                    # plt.show()
+                    success = chipfail_lib.success_uart(target, offset, WIDTH, b'target_ptr: 52012cc8 | val: 42424242\n', False)
+                    if success:
+                        exit(0)
+                    chipfail_lib.flush_uart(target)
+
+                    chipfail_lib.wait_until_rdy(fpga)
+                    
+                    progress["used_offsets"].append(offset)
+                    sleep(0.1)    
+                    print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
+
+                # Remove any leftover progress from FS
+                with open(PROGRESS_FILE, "w+") as file:
+                    file.truncate(0)
+                progress["used_offsets"] = []
+
+    except KeyboardInterrupt:
+        save_progress(progress)

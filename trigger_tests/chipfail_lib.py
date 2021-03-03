@@ -77,6 +77,6 @@ def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True)
             hexdump = target.read(1024*96)
             with open("./hexdump.txt", "w") as file:
                 file.write(hexdump.decode())
-        return True
+        return (True, response)
     else:
-        return False
+        return (False, response)
