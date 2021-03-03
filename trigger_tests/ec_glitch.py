@@ -9,6 +9,7 @@ import random
 import matplotlib.pyplot as plt
 
 PROGRESS_FILE = "progress.txt"
+LOG_FILE = f"{datetime.datetime.now().date()}_log.txt"
 
 def load_bitstream(bitstream_file):
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
@@ -79,6 +80,11 @@ def save_progress(progress):
         file.truncate(0)
         file.write(json.dumps(progress))
 
+def save_log(log):
+    with open(LOG_FILE, "w+") as file:
+        file.truncate(0)
+        file.write(json.dumps(log))
+
 if __name__ == "__main__":
 
     SCOPETYPE = 'OPENADC'
@@ -110,6 +116,8 @@ if __name__ == "__main__":
 
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
+    log = []
+
     try:
         progress = read_progress()
     except:
@@ -138,14 +146,16 @@ if __name__ == "__main__":
                     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
                     trace = collect_trace(scope)
 
-                    success = chipfail_lib.success_uart(target, offset, WIDTH)
+                    success, response = chipfail_lib.success_uart(target, offset, WIDTH)
                     if success:
                         exit(0)
                     chipfail_lib.wait_until_rdy(fpga)
                         
                     progress["used_offsets"].append(offset)
-                        
+                    log.append((offset, width, response.decode()))
+                    sleep(0.1)    
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
+
 
                 # Remove any leftover progress from FS
                 with open(PROGRESS_FILE, "w+") as file:
@@ -154,3 +164,4 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         save_progress(progress)
+        save_log(log)
