@@ -6,9 +6,13 @@ import matplotlib.pyplot as plt
 import random
 import datetime
 from time import sleep
+import sys
+import traceback
+import base64
 import json
 
-PROGRESS_FILE = "progress.txt"
+cur_time = datetime.datetime.now()
+PROGRESS_FILE = f"{cur_time.strftime('%d%m%y_%X')}_profiling.log"
 
 def setup_cw(scope, offset, nr_samples):
     scope.default_setup()
@@ -26,6 +30,13 @@ def setup_basic(scope, offset, nr_samples):
     scope.adc.basic_mode = "rising_edge"
     scope.trigger.module = "basic"
     scope.trigger.triggers = "tio4"
+
+def reset_tio1():
+    scope.io.tio1 = "gpio_low"
+    sleep(0.1)
+    scope.io.tio1 = "gpio_high"
+    sleep(0.2)
+
 
 def collect_trace_basic():
     scope.io.tio1 = "gpio_low"
@@ -56,10 +67,10 @@ def read_progress():
     with open(PROGRESS_FILE, "r") as file:
         return json.loads(file.read())
 
-def save_progress(progress):
+def save_progress(log):
     with open(PROGRESS_FILE, "w+") as file:
         file.truncate(0)
-        file.write(json.dumps(progress))    
+        file.write(json.dumps(log))
 
 if __name__ == "__main__":
 
@@ -81,18 +92,20 @@ if __name__ == "__main__":
     scope.adc.decimate = 50
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 0
-    MAX_OFFSET = 5000000
+    MIN_OFFSET = 788
+    MAX_OFFSET = 789
     STEP_SIZES = [50, 20, 10, 5, 2, 1]
     OFFSET_REPEAT = 20
     
-    MIN_WIDTH = 1160
-    MAX_WIDTH = 10000
-    WIDTH_STEPS = 100
-    WIDTH_REPEAT = 10
+    MIN_WIDTH = 100
+    MAX_WIDTH = 200
+    WIDTH_STEPS = 10
+    WIDTH_REPEAT = 20
 
     width_repeat = 0
 
+    success_ctr = 0
+    try_ctr = 0
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
     try:
@@ -100,10 +113,12 @@ if __name__ == "__main__":
     except:
         with open(PROGRESS_FILE, "w"):
             pass
-        progress = {"step_size": 0, "cur_repeat": 0, "used_offsets": [], "used_widths": [], "responses": []}
+        progress_l = [{"step_size": 0, "cur_repeat": 0, "used_offsets": [], "used_widths": [], "responses": []}]
+        progress = progress_l[0]
 
     widths = set(range(MIN_WIDTH, MAX_WIDTH, WIDTH_STEPS))
     widths = list(widths.difference(progress["used_widths"]))
+    # widths = [1440, 1450, 1460, 1470]
 
     random.shuffle(widths)
     widths_iter = iter(widths)
@@ -122,6 +137,7 @@ if __name__ == "__main__":
 
                 offsets = set(range(MIN_OFFSET, MAX_OFFSET+1, step_size))
                 new_offsets = list(offsets.difference(set(progress)))
+                # new_offsets = [784, 787, 788, 794, 804, 812, 812, 822, 842, 846, 850, 858, 859]
                 random.shuffle(new_offsets)
 
                 for offset in new_offsets:
@@ -140,27 +156,42 @@ if __name__ == "__main__":
 
                     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
 
-                    trace = collect_trace_basic()    
+                    trace = collect_trace_basic()
+                    try_ctr += 1   
                     # plt.plot(trace)
                     # plt.show()
-                    success, response = chipfail_lib.success_uart(target, offset, width, b'target_ptr: 52012cc8 | val: 42424242\n', False)
+                    success, timeout, response = chipfail_lib.success_uart(target, offset, width, b'target_ptr: 2200100 | val: aa\n', False)
+                    if timeout:
+                        chipfail_lib.flush_uart(target)
+                        reset_tio1()
+
                     if success:
-                        exit(0)
+                        print("success?")
+                        success_ctr += 1
                     chipfail_lib.flush_uart(target)
                     
                     progress["used_widths"].append(width)
                     progress["used_offsets"].append(offset)
-                    progress["responses"].append(response.decode())
+                    progress["responses"].append(base64.b64encode(response).decode())
 
                     # sleep(0.1)    
-
-                    chipfail_lib.wait_until_rdy(fpga)
+                    # Don't wait for A7 atm since it sometimes continously reports status `16`
+                    # I don't know where this comes from but missing one or two glitches is better than hanging.
+                    # chipfail_lib.wait_until_rdy(fpga)
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
 
                 # Remove any leftover progress from FS
                 with open(PROGRESS_FILE, "w+") as file:
                     file.truncate(0)
-                progress["used_offsets"] = []
+                progress_l.append(progress)
+                progress = {"step_size": 0, "cur_repeat": 0, "used_offsets": [], "used_widths": [], "responses": []}
 
-    except:
-        save_progress(progress)
+    except KeyboardInterrupt:
+        pass
+    except Exception:
+        print("unknown exception:")
+        print(traceback.format_exc())
+    finally:
+        print(f"tries: {try_ctr}")
+        print(f"success: {success_ctr}")
+        save_progress(progress_l)

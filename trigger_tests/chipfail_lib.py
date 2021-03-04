@@ -64,7 +64,10 @@ def flush_uart(ser):
     ser.flushOutput()
 
 def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True):
-    response = target.readline()
+    response = target.read_until(b"\n")
+    timeout = False
+    if len(response) < 30 or len(response) > 40:
+        timeout = True
     # response = target.read(38)
     print(f"time: {datetime.datetime.now().time()} | offset: {offset} | pulse: {pulse} | response: {response}", flush=True)
     # if not b"!100 - 100 - 10000\n" in response:
@@ -77,6 +80,6 @@ def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True)
             hexdump = target.read(1024*96)
             with open("./hexdump.txt", "w") as file:
                 file.write(hexdump.decode())
-        return (True, response)
+        return (True, timeout, response)
     else:
-        return (False, response)
+        return (False, timeout, response)
