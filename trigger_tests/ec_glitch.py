@@ -7,6 +7,8 @@ from time import sleep
 import datetime
 import random
 import matplotlib.pyplot as plt
+import sys
+import base64
 
 PROGRESS_FILE = "progress.txt"
 cur_time = datetime.datetime.now()
@@ -82,9 +84,9 @@ def save_progress(progress):
         file.write(json.dumps(progress))
 
 def save_log(log):
-    with open(LOG_FILE, "w+") as file:
+    with open(LOG_FILE, "w+b") as file:
         file.truncate(0)
-        file.write(json.dumps(log))
+        file.write(json.dumps(log, ensure_ascii=False).encode())
 
 if __name__ == "__main__":
 
@@ -93,8 +95,8 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
 
     scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
 
@@ -104,15 +106,15 @@ if __name__ == "__main__":
     setup_ec(scope)
     setup_glitcher(scope)
     chipfail_lib.setup(fpga, delay=0, glitch_pulse=1)
-    scope.adc.decimate = 50
+    scope.adc.decimate = 40
 
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
     MIN_OFFSET = 0
-    MAX_OFFSET = 284580
-    STEP_SIZES = [20, 10, 5, 2, 1]
+    MAX_OFFSET = 50000
+    STEP_SIZES = [50, 20, 10, 5, 2, 1]
     
-    WIDTH = 1160
+    WIDTH = 1470
     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
 
     success = False
@@ -147,7 +149,10 @@ if __name__ == "__main__":
                     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_DELAY, offset)
                     trace = collect_trace(scope)
 
-                    success, response = chipfail_lib.success_uart(target, offset, WIDTH)
+                    # plt.plot(trace)
+                    # plt.show()
+                    success, timeout, response = chipfail_lib.success_uart(target, offset, WIDTH)
+                    chipfail_lib.flush_uart(target)
                     if success:
                         exit(0)
                     chipfail_lib.wait_until_rdy(fpga)
@@ -156,7 +161,7 @@ if __name__ == "__main__":
 
                     log["used_widths"].append(WIDTH)
                     log["used_offsets"].append(offset)
-                    log["responses"].append(response.decode())
+                    log["responses"].append(base64.b64encode(response).decode())
 
                     sleep(0.1)    
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
@@ -168,5 +173,10 @@ if __name__ == "__main__":
                 progress["used_offsets"] = []
 
     except KeyboardInterrupt:
+        pass
+    except Exception:
+        print("unknown exception:")
+        print(traceback.format_exc())
+    finally:
         save_progress(progress)
         save_log(log)
