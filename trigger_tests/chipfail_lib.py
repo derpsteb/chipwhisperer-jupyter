@@ -66,7 +66,7 @@ def flush_uart(ser):
 def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True):
     response = target.read_until(b"\n")
     timeout = False
-    if len(response) < 30 or len(response) > 40:
+    if len(response) != 36:
         timeout = True
     # response = target.read(38)
     print(f"time: {datetime.datetime.now().time()} | offset: {offset} | pulse: {pulse} | response: {response}", flush=True)

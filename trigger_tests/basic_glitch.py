@@ -7,8 +7,11 @@ import random
 import datetime
 from time import sleep
 import json
+import base64
 
 PROGRESS_FILE = "progress.txt"
+cur_time = datetime.datetime.now()
+LOG_FILE = f"{cur_time.strftime('%d%m%y_%X')}.log"
 
 def setup_cw(scope, offset, nr_samples):
     scope.default_setup()
@@ -36,8 +39,8 @@ def collect_trace_basic():
     chipfail_lib.manual_glitch(fpga)
     
     scope.io.tio1 = "gpio_high"
-    scope.capture()
-    return scope.get_last_trace()
+    # scope.capture()
+    # return scope.get_last_trace()
 
 def setup_glitcher(scope, offset=0, width=1):
     scope.glitch.clk_src = "clkgen"
@@ -61,6 +64,11 @@ def save_progress(progress):
         file.truncate(0)
         file.write(json.dumps(progress))
 
+def save_log(log):
+    with open(LOG_FILE, "w+b") as file:
+        file.truncate(0)
+        file.write(json.dumps(log, ensure_ascii=False).encode())
+
 if __name__ == "__main__":
 
     SCOPETYPE = 'OPENADC'
@@ -69,8 +77,8 @@ if __name__ == "__main__":
 
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
     offset = 0
     nr_samples = 24400
@@ -78,14 +86,14 @@ if __name__ == "__main__":
     setup_basic(scope, offset, nr_samples)
     setup_glitcher(scope)
     chipfail_lib.setup(fpga)
-    scope.adc.decimate = 50
+    scope.adc.decimate = 100
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 5000000
-    MAX_OFFSET = 5000001
-    STEP_SIZES = [20, 10, 5, 2, 1]
+    MIN_OFFSET = 2536000
+    MAX_OFFSET = 2601000
+    STEP_SIZES = [5, 2, 1]
     
-    WIDTH = random.randrange(0, 10000, 500)
+    WIDTH = 1260
     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
 
     success = False
@@ -97,6 +105,7 @@ if __name__ == "__main__":
             pass
         progress = {"step_size": 0, "cur_repeat": 0, "used_offsets": []}
 
+    log = {"used_offsets": [], "used_widths": [], "responses": []}
     used_len = len(progress["used_offsets"])
     print(f"starting with progress len: {used_len}")
 
@@ -120,14 +129,18 @@ if __name__ == "__main__":
                     trace = collect_trace_basic()    
                     # plt.plot(trace)
                     # plt.show()
-                    success = chipfail_lib.success_uart(target, offset, WIDTH, b'target_ptr: 52012cc8 | val: 42424242\n', False)
+                    success, timeout, response = chipfail_lib.success_uart(target, offset, WIDTH, b"Open\r\n", False)
                     if success:
                         exit(0)
                     chipfail_lib.flush_uart(target)
 
-                    chipfail_lib.wait_until_rdy(fpga)
+                    # chipfail_lib.wait_until_rdy(fpga)
                     
                     progress["used_offsets"].append(offset)
+                    log["used_widths"].append(WIDTH)
+                    log["used_offsets"].append(offset)
+                    log["responses"].append(base64.b64encode(response).decode())
+
                     sleep(0.1)    
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
 
@@ -136,5 +149,9 @@ if __name__ == "__main__":
                     file.truncate(0)
                 progress["used_offsets"] = []
 
-    except KeyboardInterrupt:
+    except Exception:
+        print("unknown exception:")
+        print(traceback.format_exc())
+    finally:
         save_progress(progress)
+        save_log(log)
