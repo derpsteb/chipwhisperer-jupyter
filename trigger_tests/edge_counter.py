@@ -1,17 +1,21 @@
-import numpy
+import numpy as np
 
 class edge_count:
-    def __init__(self, settling_time, trig_threshold, edge_num, edge_type="rising_edge", pretrigger_ctr=1):
+    def __init__(self, settling_time, trig_threshold, edge_num, edge_type="rising_edge", pretrigger_ctr=1, decimate=1):
         self.edge_type = edge_type
         self.settling_time = settling_time
         self.trig_threshold = trig_threshold
-        self.effective_th = trig_threshold*settling_time
+        self.effective_th = trig_threshold
         self.edge_num = edge_num
         self.pretrigger_ctr = pretrigger_ctr
+        self.decimate = decimate
         
     def _movavg(self, trace, absolute=True):
+        if self.decimate > 1:
+            # trace = [el for el in trace[::self.decimate]]
+            trace = [np.mean(trace[start:start+self.decimate]) for start in range(0, len(trace), self.decimate)]
         if absolute:
-            trace = numpy.absolute(trace)
+            trace = np.absolute(trace)
         # Basic movavg
         # https://stackoverflow.com/questions/13728392/moving-average-or-running-mean
         cumsum, moving_aves = [0], []
@@ -23,12 +27,12 @@ class edge_count:
                 # cumsum_i-j: cumsum up to i, without anything before j
                 moving_ave = (cumsum[i] - cumsum[i-self.settling_time])/self.settling_time
                 moving_aves.append(moving_ave)
-                
+        
         return moving_aves
     
     def _movsum(self, trace, absolute=True):
         if absolute:
-            trace = numpy.absolute(trace)
+            trace = np.absolute(trace)
         cumsum_cur = 0
         mov_sum = []
         for i, x in enumerate(trace):
@@ -40,7 +44,7 @@ class edge_count:
         
         
     def run(self, trace, interpolation="avg"):
-        trace = numpy.absolute(trace)
+        trace = np.absolute(trace)
         # https://stackoverflow.com/questions/13728392/moving-average-or-running-mean
         if interpolation == "avg":
             averaged = self._movavg(trace, self.settling_time)
