@@ -9,6 +9,8 @@ import random
 import matplotlib.pyplot as plt
 import sys
 import base64
+import edge_counter
+
 
 PROGRESS_FILE = "progress.txt"
 cur_time = datetime.datetime.now()
@@ -28,9 +30,8 @@ def load_bitstream(bitstream_file):
 def setup_cw(scope):
     scope.default_setup()
     scope.adc.offset = 0
-    scope.gain.gain = 50
+    scope.gain.gain = 65
     scope.adc.samples = 24400
-    #scope.adc.presamples = 400
     
     # per docs has to be like that for DecodeIO and SAD
     scope.adc.basic_mode = "rising_edge"
@@ -38,11 +39,12 @@ def setup_cw(scope):
 def setup_ec(scope):
     setup_cw(scope)
     scope.EC.reset()
-    scope.EC.window_size = 200
-    scope.EC.threshold = 0.015
+    scope.EC.window_size = 250
+    scope.EC.decimate = 16
+    scope.EC.threshold = 0.04654545
     scope.EC.hold_cycles = 150
     scope.EC.absolute_values = True
-    scope.EC.edge_num = 2
+    scope.EC.edge_num = 1
     scope.EC.edge_type = "falling_edge"
     scope.EC.start()
     scope.trigger.module = "EC"
@@ -73,6 +75,12 @@ def setup_glitcher(scope, offset=0, width=1):
 
     scope.io.glitch_hp = True
     scope.io.glitch_lp = False
+    
+def reset_tio1():
+    scope.io.tio1 = "gpio_low"
+    sleep(0.1)
+    scope.io.tio1 = "gpio_high"
+    sleep(0.2)
 
 def read_progress():
     with open(PROGRESS_FILE, "r") as file:
@@ -98,7 +106,7 @@ if __name__ == "__main__":
     fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
     target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
 
-    scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
+    scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256_downsampling.bit")
 
     offset = 0
     nr_samples = 24400
@@ -106,15 +114,14 @@ if __name__ == "__main__":
     setup_ec(scope)
     setup_glitcher(scope)
     chipfail_lib.setup(fpga, delay=0, glitch_pulse=1)
-    scope.adc.decimate = 40
-
+    # edge_c = edge_counter.edge_count(200, 0.01, None, "falling_edge", 150)
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 0
-    MAX_OFFSET = 50000
-    STEP_SIZES = [50, 20, 10, 5, 2, 1]
+    MIN_OFFSET = 406774
+    MAX_OFFSET = 1054625
+    STEP_SIZES = [14]
     
-    WIDTH = 1470
+    WIDTH = 1260
     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
 
     success = False
@@ -130,7 +137,6 @@ if __name__ == "__main__":
 
     used_len = len(progress["used_offsets"])
     print(f"starting with progress len: {used_len}")
-
     try:
         # increase search resolution from time to time
         for step_size in STEP_SIZES:
@@ -151,11 +157,25 @@ if __name__ == "__main__":
 
                     # plt.plot(trace)
                     # plt.show()
-                    success, timeout, response = chipfail_lib.success_uart(target, offset, WIDTH)
+                    # convol, triggers = edge_c.run(trace, interpolation="sum")
+
+                    # print(triggers)
+                    # plt.plot(convol)
+                    # plt.show()
+                    
+                    # import code
+                    # variables = {**globals(), **locals()}
+                    # shell = code.InteractiveConsole(variables)
+                    # shell.interact()
+
+                    success, timeout, response = chipfail_lib.success_uart(target, offset, WIDTH, b'Open\r\n', False)
                     chipfail_lib.flush_uart(target)
                     if success:
                         exit(0)
-                    chipfail_lib.wait_until_rdy(fpga)
+                    if timeout:
+                        chipfail_lib.flush_uart(target)
+                        reset_tio1()
+                    # chipfail_lib.wait_until_rdy(fpga)
                         
                     progress["used_offsets"].append(offset)
 
@@ -172,11 +192,10 @@ if __name__ == "__main__":
                     file.truncate(0)
                 progress["used_offsets"] = []
 
-    except KeyboardInterrupt:
-        pass
     except Exception:
         print("unknown exception:")
         print(traceback.format_exc())
     finally:
         save_progress(progress)
         save_log(log)
+        exit(0)
