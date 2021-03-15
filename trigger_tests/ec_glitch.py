@@ -41,10 +41,10 @@ def setup_ec(scope):
     scope.EC.reset()
     scope.EC.window_size = 250
     scope.EC.decimate = 16
-    scope.EC.threshold = 0.04654545
+    scope.EC.threshold = 0.045
     scope.EC.hold_cycles = 150
     scope.EC.absolute_values = True
-    scope.EC.edge_num = 1
+    scope.EC.edge_num = 10
     scope.EC.edge_type = "falling_edge"
     scope.EC.start()
     scope.trigger.module = "EC"
@@ -103,8 +103,8 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
     scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256_downsampling.bit")
 
@@ -114,16 +114,16 @@ if __name__ == "__main__":
     setup_ec(scope)
     setup_glitcher(scope)
     chipfail_lib.setup(fpga, delay=0, glitch_pulse=1)
-    # edge_c = edge_counter.edge_count(200, 0.01, None, "falling_edge", 150)
+    edge_c = edge_counter.edge_count(250, 0.01, None, "falling_edge", 150, decimate=16)
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 406774
-    MAX_OFFSET = 1054625
-    STEP_SIZES = [14]
-    
+    MIN_OFFSET = 0
+    MAX_OFFSET = 1821625
+    STEP_SIZES = [10]
+    OFFSET_REPEAT = 200
+
     WIDTH = 1260
     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
-
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
     log = {"used_offsets": [], "used_widths": [], "responses": []}
@@ -142,7 +142,7 @@ if __name__ == "__main__":
         for step_size in STEP_SIZES:
             progress["step_size"] = step_size
             # only decrease step_size after repeating 20 times
-            for i in range(0,20):
+            for i in range(0,OFFSET_REPEAT):
                 progress["cur_repeat"] = i
 
                 offsets = set(range(MIN_OFFSET, MAX_OFFSET+1, step_size))
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
                     # plt.plot(trace)
                     # plt.show()
-                    # convol, triggers = edge_c.run(trace, interpolation="sum")
+                    # convol, triggers = edge_c.run(trace, interpolation="avg")
 
                     # print(triggers)
                     # plt.plot(convol)
@@ -175,7 +175,7 @@ if __name__ == "__main__":
                     if timeout:
                         chipfail_lib.flush_uart(target)
                         reset_tio1()
-                    # chipfail_lib.wait_until_rdy(fpga)
+                    chipfail_lib.wait_until_rdy(fpga)
                         
                     progress["used_offsets"].append(offset)
 
