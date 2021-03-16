@@ -30,7 +30,7 @@ def load_bitstream(bitstream_file):
 def setup_cw(scope):
     scope.default_setup()
     scope.adc.offset = 0
-    scope.gain.gain = 65
+    scope.gain.gain = 50
     scope.adc.samples = 24400
     
     # per docs has to be like that for DecodeIO and SAD
@@ -40,11 +40,11 @@ def setup_ec(scope):
     setup_cw(scope)
     scope.EC.reset()
     scope.EC.window_size = 250
-    scope.EC.decimate = 16
-    scope.EC.threshold = 0.045
-    scope.EC.hold_cycles = 150
+    scope.EC.decimate = 1
+    scope.EC.threshold = 0.015
+    scope.EC.hold_cycles = 200
     scope.EC.absolute_values = True
-    scope.EC.edge_num = 10
+    scope.EC.edge_num = 2
     scope.EC.edge_type = "falling_edge"
     scope.EC.start()
     scope.trigger.module = "EC"
@@ -94,7 +94,7 @@ def save_progress(progress):
 def save_log(log):
     with open(LOG_FILE, "w+b") as file:
         file.truncate(0)
-        file.write(json.dumps(log, ensure_ascii=False).encode())
+        file.write(json.dumps([log], ensure_ascii=False).encode())
 
 if __name__ == "__main__":
 
@@ -102,32 +102,33 @@ if __name__ == "__main__":
     PLATFORM = 'CWLITEXMEGA'
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
+    MIN_OFFSET = 100000
+    MAX_OFFSET = 175880
+    STEP_SIZES = [20]
+    OFFSET_REPEAT = 20000
+
+    WIDTH = 1329
     # Initialize connection to ARTY A7 FPGA
     fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
     target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
-    scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256_downsampling.bit")
+    scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256.bit")
 
     offset = 0
     nr_samples = 24400
 
     setup_ec(scope)
     setup_glitcher(scope)
+    scope.adc.decimate = 10
     chipfail_lib.setup(fpga, delay=0, glitch_pulse=1)
     edge_c = edge_counter.edge_count(250, 0.01, None, "falling_edge", 150, decimate=16)
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 0
-    MAX_OFFSET = 1821625
-    STEP_SIZES = [10]
-    OFFSET_REPEAT = 200
-
-    WIDTH = 1260
+    
     chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, WIDTH)
     success = False
     offsets = range(MIN_OFFSET, MAX_OFFSET)
     log = {"used_offsets": [], "used_widths": [], "responses": []}
-
     try:
         progress = read_progress()
     except:
@@ -169,13 +170,13 @@ if __name__ == "__main__":
                     # shell.interact()
 
                     success, timeout, response = chipfail_lib.success_uart(target, offset, WIDTH, b'Open\r\n', False)
+                    # success, response = chipfail_lib.success_skip_sig_check(target, offset, WIDTH)
                     chipfail_lib.flush_uart(target)
                     if success:
                         exit(0)
-                    if timeout:
-                        chipfail_lib.flush_uart(target)
-                        reset_tio1()
-                    chipfail_lib.wait_until_rdy(fpga)
+                    chipfail_lib.flush_uart(target)
+                    # reset_tio1()
+                    # chipfail_lib.wait_until_rdy(fpga)
                         
                     progress["used_offsets"].append(offset)
 
@@ -183,7 +184,7 @@ if __name__ == "__main__":
                     log["used_offsets"].append(offset)
                     log["responses"].append(base64.b64encode(response).decode())
 
-                    sleep(0.1)    
+                    sleep(0.2)    
                     print(f"\tcurrent time/it: {datetime.datetime.now() - time_pre}")
 
 
@@ -192,10 +193,9 @@ if __name__ == "__main__":
                     file.truncate(0)
                 progress["used_offsets"] = []
 
-    except Exception:
-        print("unknown exception:")
-        print(traceback.format_exc())
+    # except Exception:
+    #     print("unknown exception:")
+    #     print(traceback.format_exc())
     finally:
         save_progress(progress)
         save_log(log)
-        exit(0)
