@@ -123,6 +123,7 @@ if __name__ == "__main__":
     random.shuffle(widths)
     widths_iter = iter(widths)
     width = next(widths_iter)
+    chipfail_lib.cmd_uint32(fpga, chipfail_lib.CMD_SET_GLITCH_PULSE, width)
 
     used_len = len(progress["used_offsets"])
     print(f"starting with progress len: {used_len}")
