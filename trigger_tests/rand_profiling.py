@@ -126,7 +126,7 @@ if __name__ == "__main__":
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
     # Initialize connection to ARTY A7 FPGA
     fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB3", baudrate=115200, timeout=0.2)
+    target = serial.Serial("/dev/ttyUSB3", baudrate=115200, timeout=0.1)
 
     offset = 0
     nr_samples = 24400
@@ -213,7 +213,7 @@ if __name__ == "__main__":
                         progress["used_offsets"].append(offset)
                         progress["responses"].append(base64.b64encode(response).decode())
 
-                        sleep(0.1)    
+                        # sleep(0.1)    
                         # Don't wait for A7 atm since it sometimes continously reports status `16`
                         # I don't know where this comes from but missing one or two glitches is better than hanging.
                         # chipfail_lib.wait_until_rdy(fpga)
