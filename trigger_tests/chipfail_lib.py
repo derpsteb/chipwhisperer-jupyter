@@ -64,7 +64,7 @@ def flush_uart(ser):
     ser.flushOutput()
 
 def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True):
-    response = target.read_until(b"\n")
+    response = target.read(36)
     timeout = False
     if len(response) != 36:
         timeout = True
@@ -73,7 +73,7 @@ def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True)
     # if not b"!100 - 100 - 10000\n" in response:
     # if response != b'\x00\nstarting:\n1000000 \xe2\x88\x92 1000 \xe2\x88\x92 1000\n':
     # if response != b'!100 - 100 - 10000\n':
-    if response == expected_reponse:
+    if response == b"Open | BPMP_ATCMCFG_SB_CFG_0: 0x3\n":
         print("*** SUCCESS ***", flush=True)
         if dump:
             target.timeout = None
@@ -81,5 +81,19 @@ def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True)
             with open("./hexdump.txt", "w") as file:
                 file.write(hexdump.decode())
         return (True, timeout, response)
+    elif response == b"SecureBoot? | BPMP_ATCMCFG_SB_CFG_0: 0x1\n":
+        print("Got into SecureBoot?!", flush=True)
+        response = target.readline()
+        return (True, timeout, response)
     else:
         return (False, timeout, response)
+
+def success_skip_sig_check(target, offset, pulse):
+    response = target.read(36)
+
+    print(f"time: {datetime.datetime.now().time()} | offset: {offset} | pulse: {pulse} | response: {response}", flush=True)
+    if len(response) > 0:
+        print("*** SUCCESS ***", flush=True)
+        return (True, response)
+    else:
+        return (False, b"")

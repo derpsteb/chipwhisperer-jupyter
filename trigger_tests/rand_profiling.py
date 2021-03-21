@@ -111,13 +111,13 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 0
-    MAX_OFFSET = 1
+    MIN_OFFSET = 12549870
+    MAX_OFFSET = 12551700
     STEP_SIZES = [1]
     OFFSET_REPEAT = 10000
     
-    MIN_WIDTH = 1160
-    MAX_WIDTH = 1460
+    MIN_WIDTH = 1361
+    MAX_WIDTH = 1362
     
     WIDTH_STEPS = 20
     WIDTH_REPEAT = 0
@@ -125,8 +125,8 @@ if __name__ == "__main__":
     # scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256_downsampling.bit")
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB3", baudrate=115200, timeout=0.1)
+    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
 
     offset = 0
     nr_samples = 24400
@@ -199,7 +199,7 @@ if __name__ == "__main__":
                         try_ctr += 1   
                         # plt.plot(wave)
                         # plt.show()
-                        success, timeout, response = chipfail_lib.success_uart(target, offset, width, b'BPMP_ATCMCFG_SB_CFG_0: 0x7\n', False)
+                        success, timeout, response = chipfail_lib.success_uart(target, offset, width)
                         # if timeout:
                         #     # chipfail_lib.flush_uart(target)
                         #     # reset_tio1()
@@ -213,7 +213,7 @@ if __name__ == "__main__":
                         progress["used_offsets"].append(offset)
                         progress["responses"].append(base64.b64encode(response).decode())
 
-                        # sleep(0.1)    
+                        # sleep(0.2)    
                         # Don't wait for A7 atm since it sometimes continously reports status `16`
                         # I don't know where this comes from but missing one or two glitches is better than hanging.
                         # chipfail_lib.wait_until_rdy(fpga)
