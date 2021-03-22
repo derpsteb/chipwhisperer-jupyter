@@ -85,6 +85,15 @@ def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True)
         print("Got into SecureBoot?!", flush=True)
         response = target.readline()
         return (True, timeout, response)
+    elif response == b"APB2JTAG? | BPMP_ATCMCFG_SB_CFG_0: 0x0\n"
+        print("Enabled JTAG?", flush=True)
+        response = target.readline()
+        print(f"reponse: {response}", flush=True)
+        response = target.readline()
+        print(f"reponse: {response}", flush=True)
+        response = target.readline()
+        print(f"reponse: {response}", flush=True)
+        return (True, timeout, response)
     else:
         return (False, timeout, response)
 

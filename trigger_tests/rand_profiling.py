@@ -111,8 +111,8 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 12549870
-    MAX_OFFSET = 12551700
+    MIN_OFFSET = 12539870
+    MAX_OFFSET = 12550000
     STEP_SIZES = [1]
     OFFSET_REPEAT = 10000
     
