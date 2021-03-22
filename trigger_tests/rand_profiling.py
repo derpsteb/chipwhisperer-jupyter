@@ -111,7 +111,7 @@ if __name__ == "__main__":
     CRYPTO_TARGET = 'AVRCRYPTOLIB'
 
     # 50x downsampling: 300*50 = 15.000. 1 cycle = 34ns --> 510.000 ns = 510 us
-    MIN_OFFSET = 12539870
+    MIN_OFFSET = 12529870
     MAX_OFFSET = 12550000
     STEP_SIZES = [1]
     OFFSET_REPEAT = 10000
@@ -125,8 +125,8 @@ if __name__ == "__main__":
     # scope, _, _ = load_bitstream("../../hardware/capture/chipwhisperer-lite/cwlite_interface_ec_256_downsampling.bit")
     scope, target, prog = Setup_Generic.setup(version=None, platform=PLATFORM)
     # Initialize connection to ARTY A7 FPGA
-    fpga = serial.Serial("/dev/ttyUSB1", baudrate=115200)
-    target = serial.Serial("/dev/ttyUSB2", baudrate=115200, timeout=0.2)
+    fpga = serial.Serial("/dev/ttyUSB2", baudrate=115200)
+    target = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=0.2)
 
     offset = 0
     nr_samples = 24400

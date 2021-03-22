@@ -84,8 +84,16 @@ def success_uart(target, offset, pulse, expected_reponse=b'Open\r\n', dump=True)
     elif response == b"SecureBoot? | BPMP_ATCMCFG_SB_CFG_0: 0x1\n":
         print("Got into SecureBoot?!", flush=True)
         response = target.readline()
+        print(f"reponse: {response}", flush=True)
+        response = target.readline()
+        print(f"reponse: {response}", flush=True)
+        if dump:
+            target.timeout = None
+            hexdump = target.read(1024*128)
+            with open("./hexdump.txt", "w") as file:
+                file.write(hexdump.decode())
         return (True, timeout, response)
-    elif response == b"APB2JTAG? | BPMP_ATCMCFG_SB_CFG_0: 0x0\n"
+    elif response == b"APB2JTAG? | BPMP_ATCMCFG_SB_CFG_0: 0x0\n":
         print("Enabled JTAG?", flush=True)
         response = target.readline()
         print(f"reponse: {response}", flush=True)
